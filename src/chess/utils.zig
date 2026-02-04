@@ -11,17 +11,33 @@ pub fn sqToIndex(sq: []const u8) ?Square {
     return rank * 8 + file;
 }
 
-pub fn indexToSq(index: ?Square) []const u8 {
+pub fn indexToSq(index: ?Square) [2]u8 {
     if (index) |idx| {
         const rank = idx / 8;
         const file = idx % 8;
+        return .{ 'a' + file, '1' + rank };
+    }
+    return .{ '-', 0 };
+}
 
-        var sq: [2]u8 = undefined;
-        sq[0] = 'a' + file;
-        sq[1] = '1' + rank;
+pub fn parseMove(move: []const u8) basic_types.Move {
+    const from_sq = sqToIndex(move[0..2]).?;
+    const to_sq = sqToIndex(move[2..4]).?;
 
-        return sq[0..];
+    var promotion: ?basic_types.PieceType = null;
+    if (move.len == 5) {
+        switch (move[4]) {
+            'q' => promotion = .Queen,
+            'r' => promotion = .Rook,
+            'b' => promotion = .Bishop,
+            'n' => promotion = .Knight,
+            else => unreachable,
+        }
     }
 
-    return "-";
+    return basic_types.Move{
+        .from = from_sq,
+        .to = to_sq,
+        .promotion = promotion,
+    };
 }

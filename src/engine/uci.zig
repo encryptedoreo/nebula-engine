@@ -41,14 +41,14 @@ pub fn processNextCommand(self: *Self) UCIError!void {
                     const halfmove_clock = it.next().?;
                     const fullmove_number = it.next().?;
 
-                    self.position = try Board.fromFEN(
+                    self.position = Board.fromFEN(
                         position,
                         side_to_move,
                         castle_rights,
                         ep_square,
                         halfmove_clock,
                         fullmove_number,
-                    );
+                    ) catch return UCIError.InvalidPosition;
                 }
             } else if (mem.eql(u8, token, "quit")) {
                 return UCIError.ExitOK;

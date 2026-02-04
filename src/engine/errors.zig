@@ -3,4 +3,5 @@ pub const UCIError = error{
     BufferOverflow,
     ReadFailed,
     ExitOK,
+    InvalidPosition,
 };

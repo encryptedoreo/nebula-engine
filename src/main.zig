@@ -52,6 +52,7 @@ pub fn main() !void {
 
     while (true) uci.processNextCommand() catch |err| switch (err) {
         UCIError.ExitOK => return,
+        UCIError.InvalidPosition => continue,
         else => return err,
     };
 }
