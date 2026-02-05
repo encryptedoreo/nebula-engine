@@ -4,15 +4,15 @@ const io = std.io;
 const mem = std.mem;
 const ascii = std.ascii;
 
-const UCIError = @import("errors.zig").UCIError;
-const Board = @import("chess").Board;
+pub const UCIError = @import("errors.zig").UCIError;
+pub const Board = @import("chess").Board;
 
 const Self = @This();
 
-allocator: std.heap.Allocator,
-stdin: io.Reader,
-stdout: io.Writer,
-position: Board,
+allocator: mem.Allocator,
+stdin: *io.Reader,
+stdout: *io.Writer,
+position: Board = .initNull(),
 
 pub fn processNextCommand(self: *Self) UCIError!void {
     while (self.stdin.takeDelimiterExclusive('\n')) |line| : (self.stdin.toss(1)) {
@@ -20,16 +20,16 @@ pub fn processNextCommand(self: *Self) UCIError!void {
 
         while (it.next()) |token| {
             if (mem.eql(u8, token, "uci")) {
-                try self.stdout.print("id name Nebula 1.0");
-                try self.stdout.print("id author EncryptedOreo");
+                try self.stdout.writeAll("id name Nebula 1.0\n");
+                try self.stdout.writeAll("id author EncryptedOreo\n");
 
                 // to silence warnings from GUIs
-                try self.stdout.print("option name Hash type spin default 1 min 1 max 1");
-                try self.stdout.print("option name Threads type spin default 1 min 1 max 1");
+                try self.stdout.writeAll("option name Hash type spin default 1 min 1 max 1\n");
+                try self.stdout.writeAll("option name Threads type spin default 1 min 1 max 1\n");
 
-                try self.stdout.print("uciok");
+                try self.stdout.writeAll("uciok\n");
             } else if (mem.eql(u8, token, "isready")) {
-                try self.stdout.print("readyok");
+                try self.stdout.writeAll("readyok\n");
             } else if (mem.eql(u8, token, "position")) {
                 if (mem.eql(u8, it.next().?, "startpos")) {
                     self.position = Board.startPosition();
@@ -54,6 +54,8 @@ pub fn processNextCommand(self: *Self) UCIError!void {
                 return UCIError.ExitOK;
             }
         }
+
+        try self.stdout.flush();
     } else |err| switch (err) {
         error.EndOfStream => return,
         error.StreamTooLong => return UCIError.BufferOverflow,

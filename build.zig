@@ -12,6 +12,9 @@ pub fn build(b: *std.Build) void {
     const engine_mod = b.addModule("engine", .{
         .root_source_file = b.path("src/engine/root.zig"),
         .target = target,
+        .imports = &.{
+            .{ .name = "chess", .module = chess_mod },
+        },
     });
 
     const exe = b.addExecutable(.{

@@ -43,7 +43,7 @@ fullmove_number: u16,
 hist: [6]u64,
 hash: u64,
 
-fn prettyPrint(self: Self) void {
+pub fn prettyPrint(self: Self) void {
     std.debug.print("\n\n  +-----------------+", .{});
     inline for (1..9) |i| {
         std.debug.print("\n{d} |", .{9 - i});

@@ -28,15 +28,8 @@ pub fn main() !void {
         }
     };
 
-    var stdin_buf = allocator.alloc(u8, BUF_SIZE) catch {
-        log.err("Failed to allocate stdin buffer", .{});
-        return;
-    };
-
-    var stdout_buf = allocator.alloc(u8, BUF_SIZE) catch {
-        log.err("Failed to allocate stdout buffer", .{});
-        return;
-    };
+    var stdin_buf: [BUF_SIZE]u8 = undefined;
+    var stdout_buf: [BUF_SIZE]u8 = undefined;
 
     var stdin_reader = fs.File.stdin().reader(&stdin_buf);
     var stdout_writer = fs.File.stdout().writer(&stdout_buf);

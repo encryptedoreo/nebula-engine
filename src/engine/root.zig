@@ -1,2 +1,2 @@
-const UCI = @import("uci.zig");
-const UCIError = @import("errors.zig").UCIError;
+pub const UCI = @import("uci.zig");
+pub const UCIError = @import("errors.zig").UCIError;
