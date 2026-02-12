@@ -23,7 +23,7 @@ pub const Piece = struct {
     piece_type: PieceType,
 };
 
-pub const Direction = enum(i8) {
+pub const Direction = enum(i16) {
     North = 8,
     East = 1,
     South = -8,

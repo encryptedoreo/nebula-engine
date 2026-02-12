@@ -22,10 +22,7 @@ pub fn main() !void {
     };
 
     defer if (is_debug) {
-        switch (debug_allocator.deinit()) {
-            .leak => log.warn("Memory was leaked!", .{}),
-            .ok => log.debug("There were no memory leaks.", .{}),
-        }
+        _ = debug_allocator.deinit();
     };
 
     var stdin_buf: [BUF_SIZE]u8 = undefined;
