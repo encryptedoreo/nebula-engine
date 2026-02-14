@@ -39,49 +39,68 @@ const zb_hash_const = blk: {
     break :blk arr;
 };
 
-const KNIGHT_OFFSETS: [8][2]i8 = .{
-    .{ 2, 1 },
-    .{ 2, -1 },
-    .{ 1, 2 },
-    .{ 1, -2 },
-    .{ -2, 1 },
-    .{ -2, -1 },
-    .{ -1, 2 },
-    .{ -1, -2 },
+const PAWN_ATTACKS: [2][64]u64 = blk: {
+    @setEvalBranchQuota(1 << 16);
+    var arr: [2][64]u64 = .{ @splat(0), @splat(0) };
+
+    var bb: u64 = 1 << 7;
+    for (8..56) |i| {
+        bb <<= 1;
+
+        arr[0][i] |= (bb & 0xFEFEFEFEFEFEFEFE) << 7; // up 1, left 1
+        arr[0][i] |= (bb & 0x7F7F7F7F7F7F7F7F) << 9; // up 1, right 1
+    }
+
+    bb = 1 << 56;
+    for (8..56) |i| {
+        bb >>= 1;
+
+        arr[1][65 - i] |= (bb & 0x7F7F7F7F7F7F7F7F) >> 7; // down 1, left 1
+        arr[1][65 - i] |= (bb & 0xFEFEFEFEFEFEFEFE) >> 9; // down 1, right 1
+    }
+
+    break :blk arr;
 };
 
-const KING_OFFSETS: [8][2]i8 = .{
-    .{ 1, 0 },
-    .{ 1, 1 },
-    .{ 0, 1 },
-    .{ -1, 1 },
-    .{ -1, 0 },
-    .{ -1, -1 },
-    .{ 0, -1 },
-    .{ 1, -1 },
+const KNIGHT_ATTACKS: [64]u64 = blk: {
+    var arr: [64]u64 = @splat(0);
+    var bb: u64 = 1;
+
+    for (0..64) |i| {
+        bb <<= 1;
+
+        arr[i] |= (bb << 6) & 0x3F3F3F3F3F3F3F3F; // up 1, left 2
+        arr[i] |= (bb << 10) & 0xFCFCFCFCFCFCFCFC; // up 1, right 2
+        arr[i] |= (bb << 15) & 0x7F7F7F7F7F7F7F7F; // up 2, left 1
+        arr[i] |= (bb << 17) & 0xFEFEFEFEFEFEFEFE; // up 2, right 1
+
+        arr[i] |= (bb >> 6) & 0xFCFCFCFCFCFCFCFC; // down 1, right 2
+        arr[i] |= (bb >> 10) & 0x3F3F3F3F3F3F3F3F; // down 1, left 2
+        arr[i] |= (bb >> 15) & 0xFEFEFEFEFEFEFEFE; // down 2, right 1
+        arr[i] |= (bb >> 17) & 0x7F7F7F7F7F7F7F7F; // down 2, left 1
+    }
+
+    break :blk arr;
 };
 
-const PAWN_OFFSETS: [2][8][2]i8 = .{
-    .{
-        .{ -1, 1 },
-        .{ 1, 1 },
-        .{ 0, 0 },
-        .{ 0, 0 },
-        .{ 0, 0 },
-        .{ 0, 0 },
-        .{ 0, 0 },
-        .{ 0, 0 },
-    },
-    .{
-        .{ -1, -1 },
-        .{ 1, -1 },
-        .{ 0, 0 },
-        .{ 0, 0 },
-        .{ 0, 0 },
-        .{ 0, 0 },
-        .{ 0, 0 },
-        .{ 0, 0 },
-    },
+const KING_ATTACKS: [64]u64 = blk: {
+    @setEvalBranchQuota(1 << 16);
+    var arr: [64]u64 = @splat(0);
+    var bb: u64 = 1;
+
+    for (0..64) |i| {
+        arr[i] |= bb << 8; // up
+        arr[i] |= bb >> 8; // down
+        arr[i] |= (bb << 1) & 0x7F7F7F7F7F7F7F7F; // left
+        arr[i] |= (bb >> 1) & 0xFEFEFEFEFEFEFEFE; // right
+        arr[i] |= (bb << 7) & 0x7F7F7F7F7F7F7F7F; // up, left
+        arr[i] |= (bb >> 7) & 0xFEFEFEFEFEFEFEFE; // down, right
+        arr[i] |= (bb << 9) & 0x7F7F7F7F7F7F7F7F; // up, right
+        arr[i] |= (bb >> 9) & 0xFEFEFEFEFEFEFEFE; // down, left
+
+        bb <<= 1;
+    }
+    break :blk arr;
 };
 
 pieces: [6]Bitboard,
@@ -164,7 +183,7 @@ pub fn startPosition() Self {
             .{ .mask = 0xFFFF000000000000 },
         },
         .side_to_move = .White,
-        .castle_rights = @splat(.{ .mask = 0b10000001 }),
+        .castle_rights = @splat(.{ .mask = 0x81 }),
         .ep_square = null,
         .halfmove_clock = 0,
         .fullmove_number = 1,
@@ -290,6 +309,7 @@ pub fn fromFEN(
             'k' => index = 0,
             'q' => index = 7,
             'a'...'h' => index = char - 'a',
+            '-' => break,
             else => {
                 if (!builtin.is_test) log.err("Invalid castling right in FEN: '{c}'", .{char});
                 return ChessError.InvalidFEN;
@@ -549,7 +569,7 @@ pub fn makeMove(self: *Self, move: Move) ChessError!void {
     };
     self.hash ^= zb_hash_const[512];
 
-    _ = getAttackBitboards(self);
+    _ = getAttackBitboards(self); // TODO: make attack bitboard updates incremental (only update attacks for sliders and pieces that moved and/or were captured)
     inline for (0..6) |i| self.hist[i] = if (i == 0) self.hash else self.hist[i - 1];
 }
 
@@ -696,20 +716,13 @@ pub fn getAttackBitboards(self: *Self) [64]Bitboard {
             attack_bitboards[sq].setUnion(getRayAttacks(sq, blockers, .West));
         }
 
-        const sq_0x88 = to_0x88(sq);
-        const offsets = switch (piece.piece_type) {
-            .Pawn => PAWN_OFFSETS[@intFromEnum(piece.color)],
-            .Knight => KNIGHT_OFFSETS,
-            .King => KING_OFFSETS,
-            else => continue,
-        };
-
-        // TODO: why are attack bitboards rotated 90 degrees lmao, fix it
-        // TODO: also pawn attacks are 1 square behind where they should be
-        for (offsets) |offset| {
-            if (offset[0] == 0 and offset[1] == 0) break; // skip the null offset for pawns
-            const target_0x88 = cast(u8, @as(i8, @intCast(sq_0x88)) + offset[0] << 4 | offset[1]) orelse continue;
-            if (target_0x88 & 0x88 == 0) attack_bitboards[sq].set(from_0x88(target_0x88));
+        if (attack_bitboards[sq].mask == 0) {
+            switch (piece.piece_type) {
+                .Pawn => attack_bitboards[sq].mask = PAWN_ATTACKS[@intFromEnum(piece.color)][sq],
+                .Knight => attack_bitboards[sq].mask = KNIGHT_ATTACKS[sq],
+                .King => attack_bitboards[sq].mask = KING_ATTACKS[sq],
+                else => unreachable,
+            }
         }
     }
 
@@ -727,26 +740,20 @@ pub fn isSquareAttacked(self: Self, sq: Square, by_color: Color) bool {
 test getAttackBitboards {
     const board = Self.startPosition();
 
-    for (0..64) |i| std.debug.print("{s}: {b}\n", .{ indexToSq(cast(u8, i)), board.attack_bitboards[i].mask });
-
-    try std.testing.expect(board.isSquareAttacked(sqToIndex("a3").?, .White));
-    try std.testing.expect(board.isSquareAttacked(sqToIndex("b3").?, .White));
-    try std.testing.expect(board.isSquareAttacked(sqToIndex("c3").?, .White));
-    try std.testing.expect(board.isSquareAttacked(sqToIndex("d3").?, .White));
-    try std.testing.expect(board.isSquareAttacked(sqToIndex("e3").?, .White));
-    try std.testing.expect(board.isSquareAttacked(sqToIndex("f3").?, .White));
-    try std.testing.expect(board.isSquareAttacked(sqToIndex("g3").?, .White));
-    try std.testing.expect(board.isSquareAttacked(sqToIndex("h3").?, .White));
-
-    try std.testing.expect(board.isSquareAttacked(sqToIndex("a6").?, .Black));
-    try std.testing.expect(board.isSquareAttacked(sqToIndex("b6").?, .Black));
-    try std.testing.expect(board.isSquareAttacked(sqToIndex("c6").?, .Black));
-    try std.testing.expect(board.isSquareAttacked(sqToIndex("d6").?, .Black));
-    try std.testing.expect(board.isSquareAttacked(sqToIndex("e6").?, .Black));
-    try std.testing.expect(board.isSquareAttacked(sqToIndex("f6").?, .Black));
-    try std.testing.expect(board.isSquareAttacked(sqToIndex("g6").?, .Black));
-    try std.testing.expect(board.isSquareAttacked(sqToIndex("h6").?, .Black));
-
-    try std.testing.expect(!board.isSquareAttacked(sqToIndex("e4").?, .White));
-    try std.testing.expect(!board.isSquareAttacked(sqToIndex("e5").?, .Black));
+    try std.testing.expect(board.attack_bitboards[0].mask == 0x0000000000000102);
+    try std.testing.expect(board.attack_bitboards[1].mask == 0x0000000000050800);
+    try std.testing.expect(board.attack_bitboards[2].mask == 0x0000000000000A00);
+    try std.testing.expect(board.attack_bitboards[3].mask == 0x0000000000001C14);
+    try std.testing.expect(board.attack_bitboards[4].mask == 0x0000000000003828);
+    try std.testing.expect(board.attack_bitboards[5].mask == 0x0000000000005000);
+    try std.testing.expect(board.attack_bitboards[6].mask == 0x0000000000A01000);
+    try std.testing.expect(board.attack_bitboards[7].mask == 0x0000000000008040);
+    try std.testing.expect(board.attack_bitboards[8].mask == 0x0000000000020000);
+    try std.testing.expect(board.attack_bitboards[9].mask == 0x0000000000050000);
+    try std.testing.expect(board.attack_bitboards[10].mask == 0x00000000000A0000);
+    try std.testing.expect(board.attack_bitboards[11].mask == 0x0000000000140000);
+    try std.testing.expect(board.attack_bitboards[12].mask == 0x0000000000280000);
+    try std.testing.expect(board.attack_bitboards[13].mask == 0x0000000000500000);
+    try std.testing.expect(board.attack_bitboards[14].mask == 0x0000000000A00000);
+    try std.testing.expect(board.attack_bitboards[15].mask == 0x0000000000400000);
 }
