@@ -20,14 +20,6 @@ pub fn indexToSq(index: ?Square) [2]u8 {
     return .{ '-', 0 };
 }
 
-pub fn to_0x88(sq: Square) u8 {
-    return (sq >> 3) << 4 | (sq & 7);
-}
-
-pub fn from_0x88(sq: u8) Square {
-    return (sq >> 4) << 3 | (sq & 7);
-}
-
 pub fn parseMove(move: []const u8) basic_types.Move {
     const from_sq = sqToIndex(move[0..2]).?;
     const to_sq = sqToIndex(move[2..4]).?;

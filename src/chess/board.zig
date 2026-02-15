@@ -21,8 +21,6 @@ const utils = @import("utils.zig");
 const sqToIndex = utils.sqToIndex;
 const indexToSq = utils.indexToSq;
 const parseMove = utils.parseMove;
-const from_0x88 = utils.from_0x88;
-const to_0x88 = utils.to_0x88;
 
 const rotl = std.math.rotl;
 const cast = std.math.cast;
@@ -51,12 +49,12 @@ const PAWN_ATTACKS: [2][64]u64 = blk: {
         arr[0][i] |= (bb & 0x7F7F7F7F7F7F7F7F) << 9; // up 1, right 1
     }
 
-    bb = 1 << 56;
+    bb = 1 << 7;
     for (8..56) |i| {
-        bb >>= 1;
+        bb <<= 1;
 
-        arr[1][65 - i] |= (bb & 0x7F7F7F7F7F7F7F7F) >> 7; // down 1, left 1
-        arr[1][65 - i] |= (bb & 0xFEFEFEFEFEFEFEFE) >> 9; // down 1, right 1
+        arr[1][i] |= (bb & 0x7F7F7F7F7F7F7F7F) >> 7; // down 1, left 1
+        arr[1][i] |= (bb & 0xFEFEFEFEFEFEFEFE) >> 9; // down 1, right 1
     }
 
     break :blk arr;
@@ -67,8 +65,6 @@ const KNIGHT_ATTACKS: [64]u64 = blk: {
     var bb: u64 = 1;
 
     for (0..64) |i| {
-        bb <<= 1;
-
         arr[i] |= (bb << 6) & 0x3F3F3F3F3F3F3F3F; // up 1, left 2
         arr[i] |= (bb << 10) & 0xFCFCFCFCFCFCFCFC; // up 1, right 2
         arr[i] |= (bb << 15) & 0x7F7F7F7F7F7F7F7F; // up 2, left 1
@@ -78,6 +74,8 @@ const KNIGHT_ATTACKS: [64]u64 = blk: {
         arr[i] |= (bb >> 10) & 0x3F3F3F3F3F3F3F3F; // down 1, left 2
         arr[i] |= (bb >> 15) & 0xFEFEFEFEFEFEFEFE; // down 2, right 1
         arr[i] |= (bb >> 17) & 0x7F7F7F7F7F7F7F7F; // down 2, left 1
+
+        bb <<= 1;
     }
 
     break :blk arr;
@@ -693,7 +691,7 @@ fn getRayAttacks(sq: u8, blockers: Bitboard, dir: Direction) Bitboard {
     return .{ .mask = rotl(u64, gen.unionWith(pro.intersectWith(.{ .mask = rotl(u64, gen.mask, @intFromEnum(dir) * 4) })).mask, @intFromEnum(dir)) & avoid };
 }
 
-pub fn getAttackBitboards(self: *Self) [64]Bitboard {
+fn getAttackBitboards(self: *Self) [64]Bitboard {
     const blockers = self.colours[0].unionWith(self.colours[1]);
     var attack_bitboards: [64]Bitboard = @splat(.{ .mask = 0 });
     var it = blockers.iterator(.{});
@@ -756,4 +754,23 @@ test getAttackBitboards {
     try std.testing.expect(board.attack_bitboards[13].mask == 0x0000000000500000);
     try std.testing.expect(board.attack_bitboards[14].mask == 0x0000000000A00000);
     try std.testing.expect(board.attack_bitboards[15].mask == 0x0000000000400000);
+
+    inline for (16..48) |i| try std.testing.expect(board.attack_bitboards[i].mask == 0);
+
+    try std.testing.expect(board.attack_bitboards[48].mask == 0x0000020000000000);
+    try std.testing.expect(board.attack_bitboards[49].mask == 0x0000050000000000);
+    try std.testing.expect(board.attack_bitboards[50].mask == 0x00000A0000000000);
+    try std.testing.expect(board.attack_bitboards[51].mask == 0x0000140000000000);
+    try std.testing.expect(board.attack_bitboards[52].mask == 0x0000280000000000);
+    try std.testing.expect(board.attack_bitboards[53].mask == 0x0000500000000000);
+    try std.testing.expect(board.attack_bitboards[54].mask == 0x0000A00000000000);
+    try std.testing.expect(board.attack_bitboards[55].mask == 0x0000400000000000);
+    try std.testing.expect(board.attack_bitboards[56].mask == 0x0201000000000000);
+    try std.testing.expect(board.attack_bitboards[57].mask == 0x0008050000000000);
+    try std.testing.expect(board.attack_bitboards[58].mask == 0x000A000000000000);
+    try std.testing.expect(board.attack_bitboards[59].mask == 0x141C000000000000);
+    try std.testing.expect(board.attack_bitboards[60].mask == 0x2838000000000000);
+    try std.testing.expect(board.attack_bitboards[61].mask == 0x0050000000000000);
+    try std.testing.expect(board.attack_bitboards[62].mask == 0x0010A00000000000);
+    try std.testing.expect(board.attack_bitboards[63].mask == 0x4080000000000000);
 }
