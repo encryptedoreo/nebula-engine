@@ -827,7 +827,9 @@ pub fn generatePseudolegalMoves(self: Self, allocator: mem.Allocator) !std.Array
 test generatePseudolegalMoves {
     const board = Self.startPosition();
     const allocator = std.testing.allocator;
-    const moves = try board.generatePseudolegalMoves(allocator);
+
+    var moves = try board.generatePseudolegalMoves(allocator);
+    defer moves.deinit(allocator);
 
     for (moves.items) |m| {
         std.debug.print("{s}\n", .{moveToStr(m)});
