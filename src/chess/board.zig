@@ -785,6 +785,7 @@ pub fn generatePseudolegalMoves(self: Self, allocator: mem.Allocator) !std.Array
 
         const piece = self.getPieceAt(from) orelse continue;
         if (piece.color != self.side_to_move) continue;
+
         if (piece.piece_type == .Pawn) {
             const to = if (self.side_to_move == .White) from + 8 else from - 8;
             if (!self.colours[0].unionWith(self.colours[1]).isSet(to)) {
@@ -797,7 +798,7 @@ pub fn generatePseudolegalMoves(self: Self, allocator: mem.Allocator) !std.Array
                     continue;
                 } else try moves.append(allocator, .{ .from = from, .to = to, .promotion = null });
 
-                if (to / 8 == 1 or to / 8 == 6) {
+                if (from / 8 == 1 or from / 8 == 6) {
                     const double_push_to = if (self.side_to_move == .White) from + 16 else from - 16;
                     if (!self.colours[0].unionWith(self.colours[1]).isSet(double_push_to)) try moves.append(allocator, .{ .from = from, .to = double_push_to, .promotion = null });
                 }
