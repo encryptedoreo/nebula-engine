@@ -69,6 +69,9 @@ pub fn processNextCommand(self: *Self) UCIError!void {
                 if (self.thread) |thread| thread.join();
                 self.thread = null;
             } else if (mem.eql(u8, token, "quit")) {
+                self.is_searching.store(false, .release);
+                if (self.thread) |thread| thread.join();
+                self.thread = null;
                 return UCIError.ExitOK;
             }
         }
@@ -104,13 +107,11 @@ fn _perft(self: *Self, depth: usize, allocator: mem.Allocator) !usize {
 
     for (legal_moves.items) |move| {
         const board = self.position.copy();
-        self.position.makeMove(move) catch |err| switch (err) {
-            error.InvalidMove => {
-                self.position = board;
-                continue;
-            },
-            else => return err,
-        };
+        try self.position.makeMove(move);
+        if (!self.position.isLegal()) {
+            self.position = board;
+            continue;
+        }
 
         total_nodes += try self._perft(depth - 1, allocator);
         self.position = board;

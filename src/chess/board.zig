@@ -22,6 +22,7 @@ const utils = @import("utils.zig");
 const sqToIndex = utils.sqToIndex;
 const indexToSq = utils.indexToSq;
 const parseMove = utils.parseMove;
+const moveToStr = utils.moveToStr;
 
 const rotl = std.math.rotl;
 const cast = std.math.cast;
@@ -569,14 +570,6 @@ pub fn makeMove(self: *Self, move: Move) ChessError!void {
     self.hash ^= zb_hash_const[512];
 
     _ = getAttackBitboards(self); // TODO: make attack bitboard updates incremental (only update attacks for sliders and pieces that moved and/or were captured)
-    if (self.isSquareAttacked(cast(u8, self.pieces[5].intersectWith(self.colours[@intFromEnum(self.side_to_move)]).findFirstSet().?).?, switch (self.side_to_move) {
-        .White => .Black,
-        .Black => .White,
-    })) {
-        if (!builtin.is_test) log.err("invalid move: cannot move into check", .{});
-        return ChessError.InvalidMove;
-    }
-
     inline for (0..6) |i| self.hist[i] = if (i == 0) self.hash else self.hist[i - 1];
 }
 
@@ -740,41 +733,41 @@ fn getAttackBitboards(self: *Self) [64]Bitboard {
 test getAttackBitboards {
     const board = Self.startPosition();
 
-    try std.testing.expect(board.attack_bitboards[0].mask == 0x0000000000000102);
-    try std.testing.expect(board.attack_bitboards[1].mask == 0x0000000000050800);
-    try std.testing.expect(board.attack_bitboards[2].mask == 0x0000000000000A00);
-    try std.testing.expect(board.attack_bitboards[3].mask == 0x0000000000001C14);
-    try std.testing.expect(board.attack_bitboards[4].mask == 0x0000000000003828);
-    try std.testing.expect(board.attack_bitboards[5].mask == 0x0000000000005000);
-    try std.testing.expect(board.attack_bitboards[6].mask == 0x0000000000A01000);
-    try std.testing.expect(board.attack_bitboards[7].mask == 0x0000000000008040);
-    try std.testing.expect(board.attack_bitboards[8].mask == 0x0000000000020000);
-    try std.testing.expect(board.attack_bitboards[9].mask == 0x0000000000050000);
-    try std.testing.expect(board.attack_bitboards[10].mask == 0x00000000000A0000);
-    try std.testing.expect(board.attack_bitboards[11].mask == 0x0000000000140000);
-    try std.testing.expect(board.attack_bitboards[12].mask == 0x0000000000280000);
-    try std.testing.expect(board.attack_bitboards[13].mask == 0x0000000000500000);
-    try std.testing.expect(board.attack_bitboards[14].mask == 0x0000000000A00000);
-    try std.testing.expect(board.attack_bitboards[15].mask == 0x0000000000400000);
+    try std.testing.expectEqual(board.attack_bitboards[0].mask, 0x0000000000000102);
+    try std.testing.expectEqual(board.attack_bitboards[1].mask, 0x0000000000050800);
+    try std.testing.expectEqual(board.attack_bitboards[2].mask, 0x0000000000000A00);
+    try std.testing.expectEqual(board.attack_bitboards[3].mask, 0x0000000000001C14);
+    try std.testing.expectEqual(board.attack_bitboards[4].mask, 0x0000000000003828);
+    try std.testing.expectEqual(board.attack_bitboards[5].mask, 0x0000000000005000);
+    try std.testing.expectEqual(board.attack_bitboards[6].mask, 0x0000000000A01000);
+    try std.testing.expectEqual(board.attack_bitboards[7].mask, 0x0000000000008040);
+    try std.testing.expectEqual(board.attack_bitboards[8].mask, 0x0000000000020000);
+    try std.testing.expectEqual(board.attack_bitboards[9].mask, 0x0000000000050000);
+    try std.testing.expectEqual(board.attack_bitboards[10].mask, 0x00000000000A0000);
+    try std.testing.expectEqual(board.attack_bitboards[11].mask, 0x0000000000140000);
+    try std.testing.expectEqual(board.attack_bitboards[12].mask, 0x0000000000280000);
+    try std.testing.expectEqual(board.attack_bitboards[13].mask, 0x0000000000500000);
+    try std.testing.expectEqual(board.attack_bitboards[14].mask, 0x0000000000A00000);
+    try std.testing.expectEqual(board.attack_bitboards[15].mask, 0x0000000000400000);
 
-    inline for (16..48) |i| try std.testing.expect(board.attack_bitboards[i].mask == 0);
+    inline for (16..48) |i| try std.testing.expectEqual(board.attack_bitboards[i].mask, 0);
 
-    try std.testing.expect(board.attack_bitboards[48].mask == 0x0000020000000000);
-    try std.testing.expect(board.attack_bitboards[49].mask == 0x0000050000000000);
-    try std.testing.expect(board.attack_bitboards[50].mask == 0x00000A0000000000);
-    try std.testing.expect(board.attack_bitboards[51].mask == 0x0000140000000000);
-    try std.testing.expect(board.attack_bitboards[52].mask == 0x0000280000000000);
-    try std.testing.expect(board.attack_bitboards[53].mask == 0x0000500000000000);
-    try std.testing.expect(board.attack_bitboards[54].mask == 0x0000A00000000000);
-    try std.testing.expect(board.attack_bitboards[55].mask == 0x0000400000000000);
-    try std.testing.expect(board.attack_bitboards[56].mask == 0x0201000000000000);
-    try std.testing.expect(board.attack_bitboards[57].mask == 0x0008050000000000);
-    try std.testing.expect(board.attack_bitboards[58].mask == 0x000A000000000000);
-    try std.testing.expect(board.attack_bitboards[59].mask == 0x141C000000000000);
-    try std.testing.expect(board.attack_bitboards[60].mask == 0x2838000000000000);
-    try std.testing.expect(board.attack_bitboards[61].mask == 0x0050000000000000);
-    try std.testing.expect(board.attack_bitboards[62].mask == 0x0010A00000000000);
-    try std.testing.expect(board.attack_bitboards[63].mask == 0x4080000000000000);
+    try std.testing.expectEqual(0x0000020000000000, board.attack_bitboards[48].mask);
+    try std.testing.expectEqual(0x0000050000000000, board.attack_bitboards[49].mask);
+    try std.testing.expectEqual(0x00000A0000000000, board.attack_bitboards[50].mask);
+    try std.testing.expectEqual(0x0000140000000000, board.attack_bitboards[51].mask);
+    try std.testing.expectEqual(0x0000280000000000, board.attack_bitboards[52].mask);
+    try std.testing.expectEqual(0x0000500000000000, board.attack_bitboards[53].mask);
+    try std.testing.expectEqual(0x0000A00000000000, board.attack_bitboards[54].mask);
+    try std.testing.expectEqual(0x0000400000000000, board.attack_bitboards[55].mask);
+    try std.testing.expectEqual(0x0201000000000000, board.attack_bitboards[56].mask);
+    try std.testing.expectEqual(0x0008050000000000, board.attack_bitboards[57].mask);
+    try std.testing.expectEqual(0x000A000000000000, board.attack_bitboards[58].mask);
+    try std.testing.expectEqual(0x141C000000000000, board.attack_bitboards[59].mask);
+    try std.testing.expectEqual(0x2838000000000000, board.attack_bitboards[60].mask);
+    try std.testing.expectEqual(0x0050000000000000, board.attack_bitboards[61].mask);
+    try std.testing.expectEqual(0x0010A00000000000, board.attack_bitboards[62].mask);
+    try std.testing.expectEqual(0x4080000000000000, board.attack_bitboards[63].mask);
 }
 
 pub fn isSquareAttacked(self: Self, sq: Square, by_color: Color) bool {
@@ -785,12 +778,34 @@ pub fn isSquareAttacked(self: Self, sq: Square, by_color: Color) bool {
 pub fn generatePseudolegalMoves(self: Self, allocator: mem.Allocator) !std.ArrayList(Move) {
     var moves = try std.ArrayList(Move).initCapacity(allocator, 256);
 
-    for (self.attack_bitboards, 0..64) |attacks, f| {
+    for (self.attack_bitboards, 0..64) |att, f| {
+        var attacks = att.intersectWith(self.colours[@intFromEnum(self.side_to_move)].complement());
         var it = attacks.iterator(.{});
         const from = cast(u8, f).?;
 
         const piece = self.getPieceAt(from) orelse continue;
         if (piece.color != self.side_to_move) continue;
+        if (piece.piece_type == .Pawn) {
+            const to = if (self.side_to_move == .White) from + 8 else from - 8;
+            if (!self.colours[0].unionWith(self.colours[1]).isSet(to)) {
+                if (to / 8 == 0 or to / 8 == 7) {
+                    try moves.append(allocator, .{ .from = from, .to = to, .promotion = .Queen });
+                    try moves.append(allocator, .{ .from = from, .to = to, .promotion = .Rook });
+                    try moves.append(allocator, .{ .from = from, .to = to, .promotion = .Bishop });
+                    try moves.append(allocator, .{ .from = from, .to = to, .promotion = .Knight });
+
+                    continue;
+                } else try moves.append(allocator, .{ .from = from, .to = to, .promotion = null });
+
+                if (to / 8 == 1 or to / 8 == 6) {
+                    const double_push_to = if (self.side_to_move == .White) from + 16 else from - 16;
+                    if (!self.colours[0].unionWith(self.colours[1]).isSet(double_push_to)) try moves.append(allocator, .{ .from = from, .to = double_push_to, .promotion = null });
+                }
+            }
+
+            attacks.setIntersection(self.colours[@intFromEnum(self.side_to_move) ^ 1]);
+        }
+
         while (it.next()) |t| {
             const to = cast(u8, t).?;
             if (piece.piece_type == .Pawn and (to / 8 == 0 or to / 8 == 7)) {
@@ -807,4 +822,24 @@ pub fn generatePseudolegalMoves(self: Self, allocator: mem.Allocator) !std.Array
     }
 
     return moves;
+}
+
+test generatePseudolegalMoves {
+    const board = Self.startPosition();
+    const allocator = std.testing.allocator;
+    const moves = try board.generatePseudolegalMoves(allocator);
+
+    for (moves.items) |m| {
+        std.debug.print("{s}\n", .{moveToStr(m)});
+    }
+
+    try std.testing.expectEqual(20, moves.items.len);
+}
+
+pub fn isLegal(self: Self) bool {
+    const king_sq = self.pieces[@intFromEnum(PieceType.King)].findFirstSet() orelse return false;
+    return !self.isSquareAttacked(cast(u8, king_sq).?, switch (self.side_to_move) {
+        .White => .Black,
+        .Black => .White,
+    });
 }

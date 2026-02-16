@@ -41,3 +41,26 @@ pub fn parseMove(move: []const u8) basic_types.Move {
         .promotion = promotion,
     };
 }
+
+pub fn moveToStr(move: basic_types.Move) [5]u8 {
+    const from_sq = indexToSq(move.from);
+    const to_sq = indexToSq(move.to);
+
+    var buf: [5]u8 = .{
+        from_sq[0], from_sq[1],
+        to_sq[0],   to_sq[1],
+        0,
+    };
+
+    if (move.promotion) |promo| {
+        buf[4] = switch (promo) {
+            .Queen => 'q',
+            .Rook => 'r',
+            .Bishop => 'b',
+            .Knight => 'n',
+            else => unreachable,
+        };
+    }
+
+    return buf;
+}
