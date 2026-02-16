@@ -7,12 +7,16 @@ const ascii = std.ascii;
 pub const UCIError = @import("errors.zig").UCIError;
 pub const Board = @import("chess").Board;
 
+const cast = std.math.cast;
+
 const Self = @This();
 
 allocator: mem.Allocator,
 stdin: *io.Reader,
 stdout: *io.Writer,
 position: Board = .initNull(),
+is_searching: std.atomic.Value(bool) = .init(false),
+thread: ?std.Thread = null,
 
 pub fn processNextCommand(self: *Self) UCIError!void {
     while (self.stdin.takeDelimiterExclusive('\n')) |line| : (self.stdin.toss(1)) {
@@ -50,6 +54,20 @@ pub fn processNextCommand(self: *Self) UCIError!void {
                         fullmove_number,
                     ) catch return UCIError.InvalidPosition;
                 }
+            } else if (mem.eql(u8, token, "go")) {
+                if (self.is_searching.load(.acquire)) continue;
+                self.is_searching.store(true, .release);
+
+                if (mem.eql(u8, it.next().?, "perft")) {
+                    const depth_str = it.next().?;
+                    const depth = std.fmt.parseInt(usize, depth_str, 10) catch return;
+
+                    self.thread = std.Thread.spawn(.{}, perft, .{ self, depth }) catch return;
+                }
+            } else if (mem.eql(u8, token, "stop")) {
+                self.is_searching.store(false, .release);
+                if (self.thread) |thread| thread.join();
+                self.thread = null;
             } else if (mem.eql(u8, token, "quit")) {
                 return UCIError.ExitOK;
             }
@@ -61,4 +79,42 @@ pub fn processNextCommand(self: *Self) UCIError!void {
         error.StreamTooLong => return UCIError.BufferOverflow,
         else => return UCIError.ReadFailed,
     }
+}
+
+fn perft(self: *Self, depth: usize) !void {
+    var arena: std.heap.ArenaAllocator = .init(self.allocator);
+    defer arena.deinit();
+
+    for (1..depth + 1) |d| {
+        const start_time = std.time.milliTimestamp();
+        const nodes = try self._perft(d, arena.allocator());
+        const end_time = std.time.milliTimestamp();
+
+        try self.stdout.print("info depth {} nodes {} nps {}\n", .{ d, nodes, @divFloor(cast(i64, nodes * 1000).?, @max(1, end_time - start_time)) });
+        try self.stdout.flush();
+    }
+
+    self.is_searching.store(false, .release);
+}
+
+fn _perft(self: *Self, depth: usize, allocator: mem.Allocator) !usize {
+    if (depth == 0) return 1;
+    const legal_moves = try self.position.generatePseudolegalMoves(allocator);
+    var total_nodes: usize = 0;
+
+    for (legal_moves.items) |move| {
+        const board = self.position.copy();
+        self.position.makeMove(move) catch |err| switch (err) {
+            error.InvalidMove => {
+                self.position = board;
+                continue;
+            },
+            else => return err,
+        };
+
+        total_nodes += try self._perft(depth - 1, allocator);
+        self.position = board;
+    }
+
+    return total_nodes;
 }
