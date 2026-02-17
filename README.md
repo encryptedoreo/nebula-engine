@@ -23,7 +23,7 @@ To build the engine, run `zig build`. To build and run, do `zig build run`.
 - [x] Can generate captures and silent moves separately
 - [x] Can determine if a square is attacked
 - [x] Add perft (performance testing)
-  - [ ] Add a perft function that runs on a given position
+  - [x] Add a perft function that runs on a given position
   - [ ] Run through a perft suite containing "tricky" positions
 - [ ] **Milestone 1: Move generator is bug-free**
 

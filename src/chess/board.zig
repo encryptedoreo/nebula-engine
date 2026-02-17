@@ -721,7 +721,8 @@ test getAttackBitboards {
 }
 
 pub fn isSquareAttacked(self: Self, sq: Square, by_color: Color) bool {
-    for (0..64, self.attack_bitboards) |i, attacks| if (attacks.isSet(sq) and self.colours[@intFromEnum(by_color)].isSet(i)) return true;
+    var it = self.colours[@intFromEnum(by_color) ^ 1].iterator(.{});
+    while (it.next()) |i| if (self.attack_bitboards[i].isSet(sq)) return true;
     return false;
 }
 
@@ -757,12 +758,24 @@ pub fn generatePseudolegalMoves(self: Self, allocator: mem.Allocator) !std.Array
             attacks.setIntersection(self.colours[@intFromEnum(self.side_to_move) ^ 1]);
             if (self.ep_square) |s| attacks.set(s);
         } else if (piece.piece_type == .King) {
-            if (piece.color == .White) {
-                inline for (0..7) |i| if (self.castle_rights[0].isSet(i) and self.isSquareAttacked(i, .Black))
-                    try moves.append(allocator, .{ .from = from, .to = cast(u8, i).?, .promotion = null });
-            } else {
-                inline for (0..7) |i| if (self.castle_rights[1].isSet(i) and self.isSquareAttacked(i, .Black))
-                    try moves.append(allocator, .{ .from = from, .to = cast(u8, i).?, .promotion = null });
+            var it = self.castle_rights[@intFromEnum(piece.color)].iterator(.{});
+            while (it.next()) |i| {
+                const step = if (i < from) @as(i8, 1) else @as(i8, -1);
+                var j = @min(from, cast(u8, i).?);
+                var can_castle = true;
+
+                while (j != from) : (j += step) {
+                    if (self.isSquareAttacked(j, switch (self.side_to_move) {
+                        .White => .Black,
+                        .Black => .White,
+                    }) or self.colours[@intFromEnum(self.side_to_move)].isSet(j)) can_castle = false;
+                    break;
+                }
+
+                if (can_castle and !self.isSquareAttacked(cast(u8, i).?, switch (self.side_to_move) {
+                    .White => .Black,
+                    .Black => .White,
+                })) try moves.append(allocator, .{ .from = from, .to = cast(u8, i).?, .promotion = null });
             }
         }
 

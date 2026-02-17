@@ -96,11 +96,12 @@ fn perft(self: *Self, depth: usize) !void {
         const start_time = std.time.milliTimestamp();
         const nodes = try self._perft(root, d, arena.allocator());
         const end_time = std.time.milliTimestamp();
+        const time_taken = @max(1, end_time - start_time);
 
         if (!self.is_searching.load(.acquire)) return;
         try self.stdout.print(
-            "info depth {} nodes {} nps {}\n",
-            .{ d, nodes, @divFloor(cast(i64, nodes * 1000).?, @max(1, end_time - start_time)) },
+            "info depth {} nodes {} nps {} time {}\n",
+            .{ d, nodes, @divFloor(cast(i64, nodes * 1000).?, time_taken), time_taken },
         );
         try self.stdout.flush();
     }
