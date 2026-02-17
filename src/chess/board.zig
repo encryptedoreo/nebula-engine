@@ -761,21 +761,23 @@ pub fn generatePseudolegalMoves(self: Self, allocator: mem.Allocator) !std.Array
             var it = self.castle_rights[@intFromEnum(piece.color)].iterator(.{});
             while (it.next()) |i| {
                 const step = if (i < from) @as(i8, 1) else @as(i8, -1);
-                var j = @min(from, cast(u8, i).?);
+                var j = cast(i8, @min(from, cast(u8, i).?)).?;
                 var can_castle = true;
 
                 while (j != from) : (j += step) {
-                    if (self.isSquareAttacked(j, switch (self.side_to_move) {
+                    if (self.isSquareAttacked(cast(u8, j).?, switch (self.side_to_move) {
                         .White => .Black,
                         .Black => .White,
-                    }) or self.colours[@intFromEnum(self.side_to_move)].isSet(j)) can_castle = false;
-                    break;
+                    }) or self.colours[@intFromEnum(self.side_to_move)].isSet(cast(u8, j).?)) {
+                        can_castle = false;
+                        break;
+                    }
                 }
 
                 if (can_castle and !self.isSquareAttacked(cast(u8, i).?, switch (self.side_to_move) {
                     .White => .Black,
                     .Black => .White,
-                })) try moves.append(allocator, .{ .from = from, .to = cast(u8, i).?, .promotion = null });
+                }) and !self.colours[0].unionWith(self.colours[1]).isSet(cast(u8, i).?)) try moves.append(allocator, .{ .from = from, .to = cast(u8, i).?, .promotion = null });
             }
         }
 
