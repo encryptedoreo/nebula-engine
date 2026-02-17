@@ -88,33 +88,36 @@ fn perft(self: *Self, depth: usize) !void {
     var arena: std.heap.ArenaAllocator = .init(self.allocator);
     defer arena.deinit();
 
+    const root = self.position.copy();
+
     for (1..depth + 1) |d| {
+        _ = arena.reset(.retain_capacity);
+
         const start_time = std.time.milliTimestamp();
-        const nodes = try self._perft(d, arena.allocator());
+        const nodes = try self._perft(root, d, arena.allocator());
         const end_time = std.time.milliTimestamp();
 
-        try self.stdout.print("info depth {} nodes {} nps {}\n", .{ d, nodes, @divFloor(cast(i64, nodes * 1000).?, @max(1, end_time - start_time)) });
+        if (!self.is_searching.load(.acquire)) return;
+        try self.stdout.print(
+            "info depth {} nodes {} nps {}\n",
+            .{ d, nodes, @divFloor(cast(i64, nodes * 1000).?, @max(1, end_time - start_time)) },
+        );
         try self.stdout.flush();
     }
 
     self.is_searching.store(false, .release);
 }
 
-fn _perft(self: *Self, depth: usize, allocator: mem.Allocator) !usize {
+fn _perft(self: *Self, board: Board, depth: usize, allocator: mem.Allocator) !usize {
     if (depth == 0) return 1;
-    const legal_moves = try self.position.generatePseudolegalMoves(allocator);
+    if (!self.is_searching.load(.acquire)) return 0;
+
+    const moves = try board.generatePseudolegalMoves(allocator);
     var total_nodes: usize = 0;
-
-    for (legal_moves.items) |move| {
-        const board = self.position.copy();
-        try self.position.makeMove(move);
-        if (!self.position.isLegal()) {
-            self.position = board;
-            continue;
-        }
-
-        total_nodes += try self._perft(depth - 1, allocator);
-        self.position = board;
+    for (moves.items) |move| {
+        var next = board.copy();
+        next.makeMove(move) catch continue;
+        total_nodes += try self._perft(next, depth - 1, allocator);
     }
 
     return total_nodes;

@@ -3,7 +3,6 @@ const builtin = @import("builtin");
 const bit_set = std.bit_set;
 const ascii = std.ascii;
 const fmt = std.fmt;
-const log = std.log;
 const mem = std.mem;
 
 const basic_types = @import("basic_types.zig");
@@ -242,16 +241,7 @@ pub fn fromFEN(
             continue;
         } else if (char >= '1' and char <= '8') {
             const num_empty: u8 = char - '0';
-
-            if (sq < num_empty) {
-                if (sq == 0 and num_empty == 1) {
-                    break;
-                } else {
-                    if (!builtin.is_test) log.err("FEN position has too many empty squares", .{});
-                    return ChessError.InvalidFEN;
-                }
-            }
-
+            if (sq < num_empty) if (sq == 0 and num_empty == 1) break else return ChessError.InvalidFEN;
             sq -= num_empty;
             continue;
         }
@@ -264,10 +254,7 @@ pub fn fromFEN(
             'r' => .Rook,
             'q' => .Queen,
             'k' => .King,
-            else => {
-                if (!builtin.is_test) log.err("invalid FEN character at square {s}: '{c}'", .{ indexToSq(sq), char });
-                return ChessError.InvalidFEN;
-            },
+            else => return ChessError.InvalidFEN,
         };
 
         sq ^= 7; // flip horizontally to match internal representation
@@ -285,22 +272,16 @@ pub fn fromFEN(
     }
 
     if (sq != 0) {
-        if (!builtin.is_test) log.err("FEN position does not fill the board completely", .{});
         return ChessError.InvalidFEN;
     }
 
     board.side_to_move = switch (side_to_move[0]) {
         'w' => .White,
         'b' => .Black,
-        else => {
-            if (!builtin.is_test) log.err("invalid side to move in FEN: '{s}'", .{side_to_move});
-            return ChessError.InvalidFEN;
-        },
+        else => return ChessError.InvalidFEN,
     };
 
-    if (board.side_to_move == .Black) {
-        board.hash ^= zb_hash_const[512];
-    }
+    if (board.side_to_move == .Black) board.hash ^= zb_hash_const[512];
 
     for (castle_rights) |char| {
         const color_index: usize = @intFromBool(ascii.isLower(char));
@@ -310,10 +291,7 @@ pub fn fromFEN(
             'q' => index = 7,
             'a'...'h' => index = char - 'a',
             '-' => break,
-            else => {
-                if (!builtin.is_test) log.err("invalid castling right in FEN: '{c}'", .{char});
-                return ChessError.InvalidFEN;
-            },
+            else => return ChessError.InvalidFEN,
         }
         board.castle_rights[color_index].set(index);
         board.hash ^= zb_hash_const[@as(usize, 513) + index + color_index * 8];
@@ -323,26 +301,12 @@ pub fn fromFEN(
     if (board.ep_square) |s| {
         const rank = s / 8;
         if ((board.side_to_move == .White and rank != 5) or
-            (board.side_to_move == .Black and rank != 2))
-        {
-            if (!builtin.is_test) log.err("invalid en passant square in FEN: '{s}'", .{ep_square});
-            return ChessError.InvalidFEN;
-        }
-    } else if (!std.mem.eql(u8, ep_square, "-")) {
-        if (!builtin.is_test) log.err("invalid en passant square in FEN: '{s}'", .{ep_square});
-        return ChessError.InvalidFEN;
-    }
+            (board.side_to_move == .Black and rank != 2)) return ChessError.InvalidFEN;
+    } else if (!std.mem.eql(u8, ep_square, "-")) return ChessError.InvalidFEN;
     board.hash ^= if (board.ep_square) |s| zb_hash_const[@as(usize, 529) + s] else 0;
 
-    board.halfmove_clock = fmt.parseInt(u8, halfmove_clock, 10) catch {
-        if (!builtin.is_test) log.err("invalid halfmove clock in FEN: '{s}'", .{halfmove_clock});
-        return ChessError.InvalidFEN;
-    };
-
-    board.fullmove_number = fmt.parseInt(u16, fullmove_number, 10) catch {
-        if (!builtin.is_test) log.err("invalid fullmove number in FEN: '{s}'", .{fullmove_number});
-        return ChessError.InvalidFEN;
-    };
+    board.halfmove_clock = fmt.parseInt(u8, halfmove_clock, 10) catch return ChessError.InvalidFEN;
+    board.fullmove_number = fmt.parseInt(u16, fullmove_number, 10) catch return ChessError.InvalidFEN;
 
     _ = board.getAttackBitboards();
     return board;
@@ -419,10 +383,7 @@ pub fn getPieceAt(self: Self, sq: Square) ?Piece {
 }
 
 pub fn makeMove(self: *Self, move: Move) ChessError!void {
-    if (!self.isSquareOccupied(move.from)) {
-        if (!builtin.is_test) log.err("invalid move: no piece at square {s} to move", .{indexToSq(move.from)});
-        return ChessError.InvalidMove;
-    }
+    if (!self.isSquareOccupied(move.from)) return ChessError.InvalidMove;
 
     if (move.from == move.to) {
         self.side_to_move = switch (self.side_to_move) {
@@ -435,10 +396,7 @@ pub fn makeMove(self: *Self, move: Move) ChessError!void {
 
     const piece_moved = self.getPieceAt(move.from).?;
 
-    if (piece_moved.color != self.side_to_move) {
-        if (!builtin.is_test) log.err("invalid move: piece at square {s} does not belong to side to move", .{indexToSq(move.from)});
-        return ChessError.InvalidMove;
-    }
+    if (piece_moved.color != self.side_to_move) return ChessError.InvalidMove;
 
     self.pieces[@intFromEnum(piece_moved.piece_type)].unset(move.from);
     self.colours[@intFromEnum(piece_moved.color)].unset(move.from);
@@ -462,10 +420,7 @@ pub fn makeMove(self: *Self, move: Move) ChessError!void {
 
         self.halfmove_clock = 0;
 
-        if (piece_captured.piece_type == .King) {
-            if (!builtin.is_test) log.err("invalid move: cannot capture the king at square {s}", .{indexToSq(move.to)});
-            return ChessError.InvalidMove;
-        } else if (piece_captured.piece_type == .Rook and piece_moved.piece_type != .King) {
+        if (piece_captured.piece_type == .King) return ChessError.InvalidMove else if (piece_captured.piece_type == .Rook and piece_moved.piece_type != .King) {
             if (move.to & 56 == 56 * @as(u8, @intFromEnum(piece_captured.color))) {
                 const index = move.to & 7 ^ 7;
                 if (self.castle_rights[@intFromEnum(piece_captured.color)].isSet(index)) {
@@ -505,9 +460,7 @@ pub fn makeMove(self: *Self, move: Move) ChessError!void {
             self.ep_square = null;
         }
     } else {
-        if (self.ep_square) |s| {
-            self.hash ^= zb_hash_const[@as(usize, 529) + s];
-        }
+        if (self.ep_square) |s| self.hash ^= zb_hash_const[@as(usize, 529) + s];
         self.ep_square = null;
 
         if (piece_moved.piece_type == .Rook) {
@@ -519,10 +472,7 @@ pub fn makeMove(self: *Self, move: Move) ChessError!void {
                 }
             }
         } else if (piece_moved.piece_type == .King) {
-            if (self.getPieceAt(move.to) != null and self.getPieceAt(move.to).?.color != self.side_to_move) {
-                if (!builtin.is_test) log.err("invalid move: cannot castle through or into check at square {s}", .{indexToSq(move.to)});
-                return ChessError.InvalidMove;
-            }
+            if (self.getPieceAt(move.to) != null and self.getPieceAt(move.to).?.color != self.side_to_move) return ChessError.InvalidMove;
             const color_index: u8 = @intFromEnum(piece_moved.color);
 
             var it = self.castle_rights[color_index].iterator(.{});
@@ -776,11 +726,11 @@ pub fn isSquareAttacked(self: Self, sq: Square, by_color: Color) bool {
 }
 
 pub fn generatePseudolegalMoves(self: Self, allocator: mem.Allocator) !std.ArrayList(Move) {
-    var moves = try std.ArrayList(Move).initCapacity(allocator, 256);
+    var moves: std.ArrayList(Move) = try .initCapacity(allocator, 256);
 
     for (self.attack_bitboards, 0..64) |att, f| {
+        if (att.mask == 0) continue;
         var attacks = att.intersectWith(self.colours[@intFromEnum(self.side_to_move)].complement());
-        var it = attacks.iterator(.{});
         const from = cast(u8, f).?;
 
         const piece = self.getPieceAt(from) orelse continue;
@@ -805,7 +755,18 @@ pub fn generatePseudolegalMoves(self: Self, allocator: mem.Allocator) !std.Array
             }
 
             attacks.setIntersection(self.colours[@intFromEnum(self.side_to_move) ^ 1]);
+            if (self.ep_square) |s| attacks.set(s);
+        } else if (piece.piece_type == .King) {
+            if (piece.color == .White) {
+                inline for (0..7) |i| if (self.castle_rights[0].isSet(i) and self.isSquareAttacked(i, .Black))
+                    try moves.append(allocator, .{ .from = from, .to = cast(u8, i).?, .promotion = null });
+            } else {
+                inline for (0..7) |i| if (self.castle_rights[1].isSet(i) and self.isSquareAttacked(i, .Black))
+                    try moves.append(allocator, .{ .from = from, .to = cast(u8, i).?, .promotion = null });
+            }
         }
+
+        var it = attacks.iterator(.{});
 
         while (it.next()) |t| {
             const to = cast(u8, t).?;
@@ -832,15 +793,11 @@ test generatePseudolegalMoves {
     var moves = try board.generatePseudolegalMoves(allocator);
     defer moves.deinit(allocator);
 
-    for (moves.items) |m| {
-        std.debug.print("{s}\n", .{moveToStr(m)});
-    }
-
     try std.testing.expectEqual(20, moves.items.len);
 }
 
 pub fn isLegal(self: Self) bool {
-    const king_sq = self.pieces[@intFromEnum(PieceType.King)].findFirstSet() orelse return false;
+    const king_sq = self.pieces[@intFromEnum(PieceType.King)].intersectWith(self.colours[@intFromEnum(self.side_to_move) ^ 1]).findFirstSet() orelse return false;
     return !self.isSquareAttacked(cast(u8, king_sq).?, switch (self.side_to_move) {
         .White => .Black,
         .Black => .White,
